@@ -1,0 +1,33 @@
+# Local source data and downloaded archives
+data/*
+!data/README.md
+
+# Connection settings and secrets
+.env
+.env.*
+!.env.example
+.pgpass
+pgpass.conf
+*.pem
+*.key
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Temporary and operating-system files
+~$*
+*.tmp
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Local project brief
+/Техническое задание.docx
+
+# Local Power BI caches
+.pbi/
+*.pbix.autosave
