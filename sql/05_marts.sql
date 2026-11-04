@@ -155,3 +155,23 @@ SELECT purchase_month, eligible_orders, is_comparison_month, comparison_note
 FROM mart.delivery_monthly
 WHERE NOT is_comparison_month
 ORDER BY purchase_month;
+
+-- Одна строка на пару заказ–продавец, все заказы с позициями.
+-- Несколько товаров одного продавца внутри заказа сворачиваются.
+CREATE OR REPLACE VIEW mart.order_seller AS
+SELECT
+    i.order_id,
+    i.seller_id,
+    s.seller_state,
+    COUNT(*) AS seller_item_count
+FROM staging.order_items AS i
+LEFT JOIN raw.sellers AS s
+    ON s.seller_id = i.seller_id
+GROUP BY i.order_id, i.seller_id, s.seller_state;
+
+SELECT
+    COUNT(*) AS order_seller_pairs,
+    COUNT(DISTINCT (order_id, seller_id)) AS unique_pairs,
+    COUNT(DISTINCT order_id) AS unique_orders,
+    SUM(seller_item_count) AS total_items
+FROM mart.order_seller;
