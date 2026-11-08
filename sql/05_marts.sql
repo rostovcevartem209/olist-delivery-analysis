@@ -175,3 +175,28 @@ SELECT
     COUNT(DISTINCT order_id) AS unique_orders,
     SUM(seller_item_count) AS total_items
 FROM mart.order_seller;
+
+-- Одна строка на пару заказ–категория; неизвестная категория сохраняется.
+-- Категории различаем по исходному коду, а не по переводу.
+CREATE OR REPLACE VIEW mart.order_category AS
+SELECT
+    i.order_id,
+    p.category_code,
+    p.category_name,
+    p.is_category_unknown,
+    COUNT(*) AS category_item_count
+FROM staging.order_items AS i
+LEFT JOIN staging.products AS p
+    ON p.product_id = i.product_id
+GROUP BY
+    i.order_id,
+    p.category_code,
+    p.category_name,
+    p.is_category_unknown;
+
+SELECT
+    COUNT(*) AS order_category_pairs,
+    COUNT(DISTINCT (order_id, category_code)) AS unique_pairs,
+    COUNT(DISTINCT order_id) AS unique_orders,
+    SUM(category_item_count) AS total_items
+FROM mart.order_category;
