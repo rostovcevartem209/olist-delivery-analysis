@@ -497,6 +497,121 @@ SELECT
     ) AS late_coverage_pct
 FROM participating_orders;
 
+-- Покрытие интервалов этапов среди пригодных заказов доставки.
+-- Используем тот же is_delivery_eligible из staging.order_quality;
+-- отзывы и товарные позиции для расчёта этапов не требуются.
+-- Пригодность каждого интервала проверяется независимо от других этапов.
+WITH stages AS (
+    SELECT
+        v.stage_number,
+        v.stage_name,
+        CASE
+            WHEN v.start_at IS NULL OR v.end_at IS NULL THEN 'missing_dates'
+            WHEN NOT isfinite(v.start_at) OR NOT isfinite(v.end_at)
+                THEN 'nonfinite_dates'
+            WHEN v.end_at < v.start_at THEN 'reverse_order'
+            ELSE 'eligible'
+        END AS interval_status
+    FROM staging.order_quality AS o
+    CROSS JOIN LATERAL (
+        VALUES
+            (1, 'Покупка → подтверждение', o.purchased_at, o.approved_at),
+            (2, 'Подтверждение → перевозчик', o.approved_at, o.carrier_at),
+            (3, 'Перевозчик → вручение', o.carrier_at, o.delivered_at)
+    ) AS v(stage_number, stage_name, start_at, end_at)
+    WHERE o.is_delivery_eligible
+)
+SELECT
+    stage_name,
+    COUNT(*) AS total_orders,
+    COUNT(*) FILTER (WHERE interval_status = 'missing_dates') AS missing_dates,
+    COUNT(*) FILTER (WHERE interval_status = 'nonfinite_dates') AS nonfinite_dates,
+    COUNT(*) FILTER (WHERE interval_status = 'reverse_order') AS reverse_order,
+    COUNT(*) FILTER (WHERE interval_status = 'eligible') AS eligible_intervals
+FROM stages
+GROUP BY stage_number, stage_name
+ORDER BY stage_number;
+
+-- Длительности этапов: собственная пригодная подвыборка для каждого.
+-- Сутки по 24 часа; округление только после расчёта перцентилей.
+WITH stages AS (
+    SELECT
+        v.stage_number,
+        v.stage_name,
+        CASE
+            WHEN v.start_at IS NOT NULL
+             AND v.end_at IS NOT NULL
+             AND isfinite(v.start_at)
+             AND isfinite(v.end_at)
+             AND v.end_at >= v.start_at
+            THEN EXTRACT(EPOCH FROM (v.end_at - v.start_at)) / 86400.0
+        END AS duration_days
+    FROM staging.order_quality AS o
+    CROSS JOIN LATERAL (
+        VALUES
+            (1, 'Покупка → подтверждение', o.purchased_at, o.approved_at),
+            (2, 'Подтверждение → перевозчик', o.approved_at, o.carrier_at),
+            (3, 'Перевозчик → вручение', o.carrier_at, o.delivered_at)
+    ) AS v(stage_number, stage_name, start_at, end_at)
+    WHERE o.is_delivery_eligible
+)
+SELECT
+    stage_name,
+    COUNT(*) AS total_orders,
+    COUNT(duration_days) AS eligible_intervals,
+    ROUND(100.0 * COUNT(duration_days) / COUNT(*), 2) AS coverage_pct,
+    ROUND(
+        (PERCENTILE_CONT(0.5) WITHIN GROUP (
+            ORDER BY duration_days
+        ))::numeric, 2
+    ) AS median_stage_days,
+    ROUND(
+        (PERCENTILE_CONT(0.9) WITHIN GROUP (
+            ORDER BY duration_days
+        ))::numeric, 2
+    ) AS p90_stage_days
+FROM stages
+GROUP BY stage_number, stage_name
+ORDER BY stage_number;
+
+-- Длительности этапов по признаку просрочки всего заказа.
+-- Покрытие рассчитывается отдельно для каждой группы и этапа.
+WITH stages AS (
+    SELECT
+        v.stage_number,
+        v.stage_name,
+        o.delivered_at::date > o.estimated_at::date AS is_late,
+        CASE
+            WHEN isfinite(v.start_at)
+             AND isfinite(v.end_at)
+             AND v.end_at >= v.start_at
+            THEN EXTRACT(EPOCH FROM (v.end_at - v.start_at)) / 86400.0
+        END AS duration_days
+    FROM staging.order_quality AS o
+    CROSS JOIN LATERAL (
+        VALUES
+            (1, 'Покупка → подтверждение', o.purchased_at, o.approved_at),
+            (2, 'Подтверждение → перевозчик', o.approved_at, o.carrier_at),
+            (3, 'Перевозчик → вручение', o.carrier_at, o.delivered_at)
+    ) AS v(stage_number, stage_name, start_at, end_at)
+    WHERE o.is_delivery_eligible
+)
+SELECT
+    stage_name,
+    CASE WHEN is_late THEN 'Просрочен' ELSE 'Вовремя или раньше' END AS delivery_group,
+    COUNT(*) AS total_orders,
+    COUNT(duration_days) AS eligible_intervals,
+    ROUND(100.0 * COUNT(duration_days) / COUNT(*), 2) AS coverage_pct,
+    ROUND(
+        (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_days))::numeric, 2
+    ) AS median_stage_days,
+    ROUND(
+        (PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY duration_days))::numeric, 2
+    ) AS p90_stage_days
+FROM stages
+GROUP BY stage_number, stage_name, is_late
+ORDER BY stage_number, is_late;
+
 -- Покрытие основного анализа категорий среди пригодных заказов.
 -- Заказы с неизвестными категориями учитываются отдельной группой,
 -- даже если в том же заказе есть известные категории.
