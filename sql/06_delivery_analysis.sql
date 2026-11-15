@@ -497,6 +497,120 @@ SELECT
     ) AS late_coverage_pct
 FROM participating_orders;
 
+-- Помесячное сравнение двух продавцов с общей подвыборкой одного продавца.
+WITH delivery AS MATERIALIZED (
+    SELECT order_id, purchased_at, is_late,
+           is_delivery_eligible, seller_count
+    FROM mart.order_delivery
+),
+single_seller_orders AS (
+    SELECT
+        order_id,
+        DATE_TRUNC('month', purchased_at)::date AS purchase_month,
+        is_late
+    FROM delivery
+    WHERE is_delivery_eligible
+      AND seller_count = 1
+      AND purchased_at >= DATE '2017-01-01'
+      AND purchased_at <  DATE '2018-08-01'
+),
+monthly_baseline AS (
+    SELECT
+        purchase_month,
+        100.0 * COUNT(*) FILTER (WHERE is_late) / COUNT(*) AS baseline_pct
+    FROM single_seller_orders
+    GROUP BY purchase_month
+),
+selected_sellers(seller_id, seller_label) AS (
+    VALUES
+        ('4a3ca9315b744ce9f8e9374361493884', 'Лидер по числу просрочек'),
+        ('06a2c3af7b3aee5d69171b0e14f0ee87', 'Лидер по доле просрочек')
+),
+seller_monthly AS (
+    SELECT
+        o.purchase_month,
+        s.seller_id,
+        COUNT(*) AS order_count,
+        COUNT(*) FILTER (WHERE o.is_late) AS late_orders
+    FROM single_seller_orders AS o
+    JOIN mart.order_seller AS s ON s.order_id = o.order_id
+    JOIN selected_sellers AS x ON x.seller_id = s.seller_id
+    GROUP BY o.purchase_month, s.seller_id
+)
+SELECT
+    b.purchase_month,
+    x.seller_label,
+    COALESCE(s.order_count, 0) AS order_count,
+    COALESCE(s.late_orders, 0) AS late_orders,
+    ROUND(100.0 * s.late_orders / s.order_count, 2) AS seller_late_pct,
+    ROUND(b.baseline_pct, 2) AS baseline_pct,
+    ROUND(
+        100.0 * s.late_orders / s.order_count - b.baseline_pct, 2
+    ) AS gap_pp
+FROM monthly_baseline AS b
+CROSS JOIN selected_sellers AS x
+LEFT JOIN seller_monthly AS s
+    ON s.purchase_month = b.purchase_month AND s.seller_id = x.seller_id
+ORDER BY x.seller_label, b.purchase_month;
+
+-- Помесячное сравнение двух категорий с подвыборкой одной известной категории.
+WITH delivery AS MATERIALIZED (
+    SELECT order_id, purchased_at, is_late, is_delivery_eligible,
+           known_category_count, unknown_category_item_count
+    FROM mart.order_delivery
+),
+one_category_orders AS (
+    SELECT
+        order_id,
+        DATE_TRUNC('month', purchased_at)::date AS purchase_month,
+        is_late
+    FROM delivery
+    WHERE is_delivery_eligible
+      AND known_category_count = 1
+      AND unknown_category_item_count = 0
+      AND purchased_at >= DATE '2017-01-01'
+      AND purchased_at <  DATE '2018-08-01'
+),
+monthly_baseline AS (
+    SELECT
+        purchase_month,
+        100.0 * COUNT(*) FILTER (WHERE is_late) / COUNT(*) AS baseline_pct
+    FROM one_category_orders
+    GROUP BY purchase_month
+),
+selected_categories(category_code, category_name) AS (
+    VALUES
+        ('cama_mesa_banho', 'bed_bath_table'),
+        ('audio', 'audio')
+),
+category_monthly AS (
+    SELECT
+        o.purchase_month,
+        c.category_code,
+        COUNT(*) AS order_count,
+        COUNT(*) FILTER (WHERE o.is_late) AS late_orders
+    FROM one_category_orders AS o
+    JOIN mart.order_category AS c ON c.order_id = o.order_id
+    JOIN selected_categories AS x ON x.category_code = c.category_code
+    GROUP BY o.purchase_month, c.category_code
+)
+SELECT
+    b.purchase_month,
+    x.category_name,
+    COALESCE(c.order_count, 0) AS order_count,
+    COALESCE(c.late_orders, 0) AS late_orders,
+    ROUND(100.0 * c.late_orders / c.order_count, 2) AS category_late_pct,
+    ROUND(b.baseline_pct, 2) AS baseline_pct,
+    ROUND(
+        100.0 * c.late_orders / c.order_count - b.baseline_pct, 2
+    ) AS gap_pp
+FROM monthly_baseline AS b
+CROSS JOIN selected_categories AS x
+LEFT JOIN category_monthly AS c
+    ON c.purchase_month = b.purchase_month
+   AND c.category_code = x.category_code
+ORDER BY x.category_name, b.purchase_month;
+
 -- Покрытие интервалов этапов среди пригодных заказов доставки.
 -- Используем тот же is_delivery_eligible из staging.order_quality;
 -- отзывы и товарные позиции для расчёта этапов не требуются.
