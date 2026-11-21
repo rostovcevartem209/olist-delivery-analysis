@@ -1,0 +1,46 @@
+// Создавать меры в Power BI Desktop по одной.
+// Имя импортированной таблицы в текущем отчёте — mart order_delivery.
+// Все семь мер ниже сверены пользователем с SQL по карточкам.
+
+Всего заказов = COUNTROWS('mart order_delivery')
+
+Пригодные заказы =
+CALCULATE(
+    COUNTROWS('mart order_delivery'),
+    'mart order_delivery'[is_delivery_eligible] = TRUE()
+)
+
+Просроченные заказы =
+CALCULATE(
+    COUNTROWS('mart order_delivery'),
+    'mart order_delivery'[is_delivery_eligible] = TRUE(),
+    'mart order_delivery'[is_late] = TRUE()
+)
+
+// Формат меры — процент, два десятичных знака.
+Доля просрочек =
+DIVIDE(
+    [Просроченные заказы],
+    [Пригодные заказы]
+)
+
+// Сверены медиана доставки 10, P90 23, медианная задержка 7 дней.
+// Формат — число. Единица измерения — календарные дни.
+Медиана доставки, дней =
+CALCULATE(
+    MEDIAN('mart order_delivery'[delivery_days]),
+    'mart order_delivery'[is_delivery_eligible] = TRUE()
+)
+
+P90 доставки, дней =
+CALCULATE(
+    PERCENTILE.INC('mart order_delivery'[delivery_days], 0.9),
+    'mart order_delivery'[is_delivery_eligible] = TRUE()
+)
+
+Медианная задержка, дней =
+CALCULATE(
+    MEDIAN('mart order_delivery'[delay_days]),
+    'mart order_delivery'[is_delivery_eligible] = TRUE(),
+    'mart order_delivery'[is_late] = TRUE()
+)
