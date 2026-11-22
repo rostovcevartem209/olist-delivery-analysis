@@ -216,3 +216,31 @@ CROSS JOIN LATERAL (
 ) AS v(rule_number, review_rule, use_review)
 GROUP BY v.rule_number, v.review_rule, o.is_late
 ORDER BY v.rule_number, o.is_late;
+
+-- Контроль для распределения оценок 1–5 в Power BI.
+-- Знаменатель — все пригодные отзывы внутри соответствующей группы доставки.
+WITH score_counts AS (
+    SELECT
+        delivered_at::date > estimated_at::date AS is_late,
+        review_score,
+        COUNT(*) AS review_count
+    FROM staging.order_review_quality
+    WHERE is_delivery_eligible
+      AND is_review_eligible
+    GROUP BY
+        delivered_at::date > estimated_at::date,
+        review_score
+)
+SELECT
+    CASE WHEN is_late THEN 'С опозданием'
+         ELSE 'Вовремя или раньше'
+    END AS delivery_group,
+    review_score,
+    review_count,
+    ROUND(
+        100.0 * review_count
+        / SUM(review_count) OVER (PARTITION BY is_late),
+        2
+    ) AS score_pct
+FROM score_counts
+ORDER BY is_late, review_score;

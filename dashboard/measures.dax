@@ -209,3 +209,112 @@ IF(
     "Менее 100 заказов",
     "От 100 заказов"
 )
+
+// Основной анализ отзывов. Используется выбранный отзыв и допуск из SQL.
+// По группам задержки число отзывов, покрытие и средняя оценка сверены с SQL.
+Пригодные отзывы =
+CALCULATE(
+    COUNTROWS('mart order_delivery'),
+    'mart order_delivery'[is_delivery_eligible] = TRUE(),
+    'mart order_delivery'[is_review_eligible] = TRUE()
+)
+
+// Формат — процент с двумя десятичными знаками.
+Покрытие отзывами =
+DIVIDE(
+    [Пригодные отзывы],
+    [Пригодные заказы]
+)
+
+// Формат — число с двумя десятичными знаками.
+Средняя оценка =
+CALCULATE(
+    AVERAGE('mart order_delivery'[review_score]),
+    'mart order_delivery'[is_delivery_eligible] = TRUE(),
+    'mart order_delivery'[is_review_eligible] = TRUE()
+)
+
+// Оценки 1–2 среди пригодных отзывов, тот же знаменатель отбора, что в SQL.
+// Сверены числа 8258, 267, 81, 15, 8 и доли 9.25%, 18.59%, 20.45%, 26.32%, 42.11%.
+Низкие оценки =
+COALESCE(
+    CALCULATE(
+        [Пригодные отзывы],
+        KEEPFILTERS('mart order_delivery'[review_score] IN { 1, 2 })
+    ),
+    0
+)
+
+// Формат — процент, два десятичных знака.
+Доля низких оценок =
+DIVIDE(
+    [Низкие оценки],
+    [Пригодные отзывы]
+)
+
+Объём отзывов =
+IF(
+    [Пригодные отзывы] < 30,
+    "Менее 30 отзывов",
+    "От 30 отзывов"
+)
+
+// Для распределения оценок 1–5 внутри группы доставки.
+// Формат — процент, два десятичных знака. Для оценки 5 сверены 62.28%/40.57%.
+Доля оценки в группе =
+DIVIDE(
+    [Пригодные отзывы],
+    CALCULATE(
+        [Пригодные отзывы],
+        REMOVEFILTERS('mart order_delivery'[review_score])
+    )
+)
+
+// Пригодные отзывы для основной подвыборки одной известной категории.
+// Матрица создана; числа baby 2474/58 и auto 3479/83 сверены с SQL.
+Пригодные отзывы категории =
+CALCULATE(
+    [Пригодные отзывы],
+    'mart order_delivery'[known_category_count] = 1,
+    'mart order_delivery'[unknown_category_item_count] = 0,
+    TREATAS(
+        VALUES('mart order_category'[order_id]),
+        'mart order_delivery'[order_id]
+    )
+)
+
+// Формат — процент, два десятичных знака.
+Покрытие отзывами категории =
+DIVIDE(
+    [Пригодные отзывы категории],
+    [Заказы категории]
+)
+
+Доля низких оценок категории =
+CALCULATE(
+    [Доля низких оценок],
+    'mart order_delivery'[known_category_count] = 1,
+    'mart order_delivery'[unknown_category_item_count] = 0,
+    TREATAS(
+        VALUES('mart order_category'[order_id]),
+        'mart order_delivery'[order_id]
+    )
+)
+
+// Фильтр матрицы, 1 при наличии минимум 30 отзывов в каждой группе.
+// REMOVEFILTERS снимает фильтр столбца матрицы для проверки обеих групп.
+Категория для сравнения =
+VAR OnTimeReviews =
+    CALCULATE(
+        [Пригодные отзывы категории],
+        REMOVEFILTERS('mart order_delivery'[Группа доставки]),
+        'mart order_delivery'[is_late] = FALSE()
+    )
+VAR LateReviews =
+    CALCULATE(
+        [Пригодные отзывы категории],
+        REMOVEFILTERS('mart order_delivery'[Группа доставки]),
+        'mart order_delivery'[is_late] = TRUE()
+    )
+RETURN
+    IF(OnTimeReviews >= 30 && LateReviews >= 30, 1, 0)

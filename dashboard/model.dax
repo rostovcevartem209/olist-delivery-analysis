@@ -33,3 +33,29 @@ FORMAT('Календарь'[Date], "yyyy-MM")
 // применяется только к визуальному элементу.
 // Подсказка марта 2018 сверена с SQL по скриншоту:
 // 7003 пригодных заказа, 1328 просрочек, доля 18.96%.
+
+// Вычисляемый столбец в mart order_delivery.
+// Для delay_group установить Сортировать по столбцу → Порядок задержки.
+// Добавление и порядок групп на графике подтверждены по скриншоту.
+Порядок задержки =
+SWITCH(
+    TRUE(),
+    ISBLANK('mart order_delivery'[deviation_days]), BLANK(),
+    'mart order_delivery'[deviation_days] <= 0, 0,
+    'mart order_delivery'[deviation_days] <= 3, 1,
+    'mart order_delivery'[deviation_days] <= 7, 2,
+    'mart order_delivery'[deviation_days] <= 14, 3,
+    4
+)
+
+// Вычисляемый столбец в mart order_delivery для сравнения двух групп.
+// Создание и таблица сравнения подтверждены по скриншоту.
+Группа доставки =
+IF(
+    'mart order_delivery'[is_delivery_eligible],
+    IF(
+        'mart order_delivery'[is_late],
+        "С опозданием",
+        "Вовремя или раньше"
+    )
+)
