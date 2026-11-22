@@ -107,3 +107,105 @@ RETURN
         ),
         [Вклад в просрочки]
     )
+
+// Основной анализ продавцов, пригодные заказы с одним продавцом.
+// TREATAS передаёт список заказов выбранного продавца в основную витрину.
+// Сверены общий итог 95195 заказов, 6521 просрочка и лидер 1673/168.
+Заказы продавца =
+CALCULATE(
+    [Пригодные заказы],
+    'mart order_delivery'[seller_count] = 1,
+    TREATAS(
+        VALUES('mart order_seller'[order_id]),
+        'mart order_delivery'[order_id]
+    )
+)
+
+Просрочки продавца =
+COALESCE(
+    CALCULATE(
+        [Заказы продавца],
+        'mart order_delivery'[is_late] = TRUE()
+    ),
+    0
+)
+
+// Формат — процент, два десятичных знака.
+// Сверены лидер 10.04% и общий итог 6.85% подвыборки одного продавца.
+Доля просрочек продавца =
+DIVIDE(
+    [Просрочки продавца],
+    [Заказы продавца]
+)
+
+// Формат — число с одним десятичным знаком. Только просроченные заказы.
+// Сверены лидер 8 дней и общий итог 7 дней.
+Медианная задержка продавца, дней =
+CALCULATE(
+    MEDIAN('mart order_delivery'[delay_days]),
+    'mart order_delivery'[is_delivery_eligible] = TRUE(),
+    'mart order_delivery'[seller_count] = 1,
+    'mart order_delivery'[is_late] = TRUE(),
+    TREATAS(
+        VALUES('mart order_seller'[order_id]),
+        'mart order_delivery'[order_id]
+    )
+)
+
+Объём выборки продавца =
+IF(
+    [Заказы продавца] < 100,
+    "Менее 100 заказов",
+    "От 100 заказов"
+)
+
+// Основной анализ категорий. Одна известная категория, неизвестных позиций нет.
+// Сверены общий итог 94358/6422 и bed_bath_table 9069/684/7.54%.
+Заказы категории =
+CALCULATE(
+    [Пригодные заказы],
+    'mart order_delivery'[known_category_count] = 1,
+    'mart order_delivery'[unknown_category_item_count] = 0,
+    TREATAS(
+        VALUES('mart order_category'[order_id]),
+        'mart order_delivery'[order_id]
+    )
+)
+
+Просрочки категории =
+COALESCE(
+    CALCULATE(
+        [Заказы категории],
+        'mart order_delivery'[is_late] = TRUE()
+    ),
+    0
+)
+
+Доля просрочек категории =
+DIVIDE(
+    [Просрочки категории],
+    [Заказы категории]
+)
+
+// Только просроченные заказы с одной известной категорией.
+// Формат — число с одним десятичным знаком.
+// Сверены audio 7 дней, home_confort 9 дней и fashion_underwear_beach 7 дней.
+Медианная задержка категории, дней =
+CALCULATE(
+    MEDIAN('mart order_delivery'[delay_days]),
+    'mart order_delivery'[is_delivery_eligible] = TRUE(),
+    'mart order_delivery'[known_category_count] = 1,
+    'mart order_delivery'[unknown_category_item_count] = 0,
+    'mart order_delivery'[is_late] = TRUE(),
+    TREATAS(
+        VALUES('mart order_category'[order_id]),
+        'mart order_delivery'[order_id]
+    )
+)
+
+Объём выборки категории =
+IF(
+    [Заказы категории] < 100,
+    "Менее 100 заказов",
+    "От 100 заказов"
+)
