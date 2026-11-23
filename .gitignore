@@ -31,3 +31,8 @@ Desktop.ini
 # Local Power BI caches
 .pbi/
 *.pbix.autosave
+
+# Temporary PDF review renders and superseded export attempts
+/tmp/
+/dashboard/olist_delivery_analysis.pdf
+/dashboard/olist_delivery_analysis_categories.pdf

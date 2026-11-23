@@ -318,3 +318,21 @@ VAR LateReviews =
     )
 RETURN
     IF(OnTimeReviews >= 30 && LateReviews >= 30, 1, 0)
+
+// Отбор матрицы штатов: минимум 30 пригодных отзывов в каждой группе.
+// Матрица создана, 13 штатов; для SP сверены 38427/701 отзыв.
+Штат для сравнения =
+VAR OnTimeReviews =
+    CALCULATE(
+        [Пригодные отзывы],
+        REMOVEFILTERS('mart order_delivery'[Группа доставки]),
+        'mart order_delivery'[is_late] = FALSE()
+    )
+VAR LateReviews =
+    CALCULATE(
+        [Пригодные отзывы],
+        REMOVEFILTERS('mart order_delivery'[Группа доставки]),
+        'mart order_delivery'[is_late] = TRUE()
+    )
+RETURN
+    IF(OnTimeReviews >= 30 && LateReviews >= 30, 1, 0)
