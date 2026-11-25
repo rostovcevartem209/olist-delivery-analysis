@@ -64,4 +64,6 @@
 
 ## Воспроизведение
 
+Полная последовательная сборка SQL 01–08 проверена 25 ноября 2026 года в новой базе PostgreSQL 18: **28 контрольных проверок OK, 0 FAIL**. [Результаты проверки воспроизводимости](reports/rebuild_validation.md).
+
 Создание схем и исходных таблиц: [sql/01_create_raw.sql](sql/01_create_raw.sql). Импорт через psql: [sql/02_load_data.sql](sql/02_load_data.sql). Проверки: [sql/03_quality_checks.sql](sql/03_quality_checks.sql). Подготовка данных: [sql/04_staging.sql](sql/04_staging.sql). Витрины: [sql/05_marts.sql](sql/05_marts.sql). Анализ доставки: [sql/06_delivery_analysis.sql](sql/06_delivery_analysis.sql). Анализ отзывов описан в [sql/07_reviews_analysis.sql](sql/07_reviews_analysis.sql). Скрипт импорта проверен пользователем в отдельной тестовой базе: количества строк совпали, повторный импорт заблокирован. Порядок запуска и проверки: [sql/README.md](sql/README.md).
