@@ -60,6 +60,8 @@
 
 Источник по ТЗ: Brazilian E-Commerce Public Dataset by Olist. Порядок получения и статус данных: [data/README.md](data/README.md).
 
+Автор данных — Olist, источник — [Kaggle](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce), лицензия данных — [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). Исходные CSV не включены в Git; локальная копия идентифицирована SHA-256 в [манифесте](data/source_manifest.csv). Преобразования и ограничения версии описаны в data/README.md.
+
 Данные исторические. Дата доставки относится к заказу целиком и не устанавливает виновника задержки. Связь задержек с оценками не доказывает причинность. Рекомендации не означают достигнутого улучшения или измеренной экономии.
 
 ## Воспроизведение

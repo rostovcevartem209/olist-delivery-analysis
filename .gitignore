@@ -1,6 +1,7 @@
 # Local source data and downloaded archives
 data/*
 !data/README.md
+!data/source_manifest.csv
 
 # Connection settings and secrets
 .env
