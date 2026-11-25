@@ -4,6 +4,31 @@
 
 Всего заказов = COUNTROWS('mart order_delivery')
 
+// Карточки исключений проверены: полный период 2971/2963/8;
+// март 2018 — 208/208/0 (всего / по статусу / по данным).
+Исключённые заказы =
+COALESCE(
+    CALCULATE(
+        COUNTROWS('mart order_delivery'),
+        KEEPFILTERS('mart order_delivery'[is_delivery_eligible] = FALSE())
+    ),
+    0
+)
+
+Исключено по статусу =
+COALESCE(
+    CALCULATE(
+        COUNTROWS('mart order_delivery'),
+        KEEPFILTERS('mart order_delivery'[exclusion_reason] = "status_not_delivered")
+    ),
+    0
+)
+
+// Все причины качества доставки после исключения по статусу.
+// В текущем полном наборе это 8 заказов без обязательных дат.
+Исключено по данным доставки =
+[Исключённые заказы] - [Исключено по статусу]
+
 Пригодные заказы =
 CALCULATE(
     COUNTROWS('mart order_delivery'),
